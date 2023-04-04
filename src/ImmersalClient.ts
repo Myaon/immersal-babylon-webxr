@@ -86,6 +86,8 @@ export class ImmersalClient {
 
     const res = await this.immersalLocalizerCore.localizeRequestAsync(req);
 
+    console.log(res);
+
     const matrix = new Matrix();
     matrix.setRowFromFloats(0, -res.r00, -res.r01, -res.r02, -res.px);
     matrix.setRowFromFloats(1, -res.r10, -res.r11, res.r12, res.py);

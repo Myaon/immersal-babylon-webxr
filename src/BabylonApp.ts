@@ -19,7 +19,7 @@ import { IPngEncoder } from './IPngEncoder';
 import { CameraIntrinsics } from './CameraIntrinsics';
 import { ImmersalClient } from './ImmersalClient';
 
-import mapModel from '../assets/map.babylon?url';
+import mapModel from '../assets/scene.babylon?url';
 
 export default class BabylonApp {
   private engine: Engine;
@@ -27,6 +27,9 @@ export default class BabylonApp {
   private xr?: WebXRDefaultExperience;
   private pngEncoder: IPngEncoder;
   private mapRootNode?: TransformNode;
+  private mapRootInitialPose?: { position: Vector3; quaternion: Quaternion };
+
+  private coordinateConversionNode?: TransformNode;
 
   public constructor(renderCanvas: HTMLCanvasElement, encoder: IPngEncoder) {
     this.engine = new Engine(renderCanvas, true);
@@ -73,6 +76,10 @@ export default class BabylonApp {
     SceneLoader.AppendAsync(folderName, fileName, this.scene).then((s) => {
       this.mapRootNode = s.getNodeById('__root__') as TransformNode;
     });
+    this.coordinateConversionNode = new TransformNode(
+      'coordConversion',
+      this.scene
+    );
   };
 
   /**
@@ -110,9 +117,6 @@ export default class BabylonApp {
         return;
       }
 
-      const cameraPos = this.scene.activeCamera.position.clone();
-      const cameraRot = this.scene.activeCamera.absoluteRotation.clone();
-
       const intrinsics = this.CreateCameraIntrinsicsFromFrame(frame);
       const b64Strins = await this.CreateCameraImageBase64StringFromFrameAsync(
         frame
@@ -131,23 +135,60 @@ export default class BabylonApp {
         return;
       }
 
+      //console.log(resMatrix);
+      /*
       let pos: Vector3 = Vector3.Zero();
       pos = Vector3.Zero();
       let rot = Quaternion.Identity();
+
+      // Immersalで得た座標
       resMatrix.decompose(undefined, rot, pos);
       rot = Quaternion.FromRotationMatrix(resMatrix);
 
-      const box = MeshBuilder.CreateBox('box', { size: 0.1 }, this.scene);
-      box.position = pos;
-      box.rotationQuaternion = rot;
+      // transformNode
+      if (!this.coordinateConversionNode){
+        return;
+      }
 
       if (!this.mapRootNode) {
         return;
       }
 
-      this.mapRootNode.setParent(box);
-      box.position = cameraPos;
-      box.rotationQuaternion = cameraRot;
+      // 親子関係があれば解除
+      this.mapRootNode.parent = null;
+
+      if (this.mapRootInitialPose === undefined) {
+        const mapRootPosition = this.mapRootNode.position.clone();
+        const mapRootQuaternion =
+          this.mapRootNode.rotationQuaternion?.clone() ?? Quaternion.Identity();
+
+        this.mapRootInitialPose = {
+          position: mapRootPosition,
+          quaternion: mapRootQuaternion,
+        };
+      } else {
+        this.mapRootNode.position = this.mapRootInitialPose.position.clone();
+        this.mapRootNode.rotationQuaternion =
+          this.mapRootInitialPose.quaternion.clone();
+      }
+
+      // Immersalで得た座標に移動
+      //this.coordinateConversionNode.position = pos;
+      //this.coordinateConversionNode.rotationQuaternion = rot;      
+
+      // 初期化
+      //this.mapRootNode.position = Vector3.Zero();
+      //this.mapRootNode.rotation = new Vector3(0, 0, 0);
+
+      // boxをマップのモデルの親に設定
+      this.mapRootNode.setParent(this.coordinateConversionNode, true);
+      
+      // 撮影時のカメラ座標分だけ動かす
+      this.coordinateConversionNode.position = cameraPos;
+      this.coordinateConversionNode.rotationQuaternion = cameraRot;
+
+      console.log(this.mapRootNode.getAbsolutePivotPoint());
+      */
     }, true);
   };
 
@@ -181,6 +222,8 @@ export default class BabylonApp {
       width: (view as any).camera.width,
       height: (view as any).camera.height,
     };
+
+    console.log((view as any).camera);
 
     const projectionMatrix = view.projectionMatrix;
 
